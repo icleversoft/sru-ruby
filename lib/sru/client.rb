@@ -99,6 +99,35 @@ module SRU
       return ScanResponse.new(doc, @parser)
     end
 
+    #Send a searchRetrieve requet to the SRU server and returns
+    #a SRU::SearchResponse object. The first argument is a x-query option.
+    #The x-query value conforms to the Bib-1 attribute set
+    #
+    #   scan_response = client.zsearch_retrieve '@attr 1=4 title'
+    def zsearch_retrieve( query, options = {})
+      options[:xpquery] = query
+      options[:operation] = 'searchRetrieve'
+      options[:startRecord] = 1
+      options[:maximumRecords] = 10
+      options[:recordSchema] = 'marcxml'
+      
+      doc = get_doc( options )
+      return SearchResponse.new( doc, @parser )
+    end
+    
+    # Send a scan request to the SRU server and return a SRU::ScanResponse
+    # object. You must supply the first parameter which is the searchClause.
+    # Other SRU options can be sent in a hash as the seond argument.
+    #
+    #   scan_response = client.zscan '@attr 1=4 title', :maximumTerms => 5
+    def zscan(clause, options={})
+      options[:xpScanClause] = clause
+      options[:operation] = 'scan'
+      options[:maximumTerms] = 5 unless options.has_key? :maximumTerms
+      doc = get_doc(options)
+      return ScanResponse.new(doc, @parser)
+    end
+  
     private
 
     # helper to fetch xml responses from the sru server
@@ -122,7 +151,13 @@ module SRU
       parts = hash.entries.map { |entry| 
         "#{entry[0]}=#{CGI.escape(entry[1].to_s)}"
       }
-      uri.query = parts.join('&')
+      
+      uri_str = parts.join('&')
+      uri_str.gsub!(/xpquery/, 'x-pquery')
+      uri_str.gsub!(/xpScanClause/, 'x-pScanClause')
+      
+      uri.query = uri_str
+      
       # fetch the xml and build/return a document object from it
       begin
         res = Net::HTTP.start(uri.host, uri.port) {|http|
